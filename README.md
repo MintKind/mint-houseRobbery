@@ -3,7 +3,8 @@ Requirements:
 
     qb-core
     qb-target
-    cl_drawtextui 1
+    cl_drawtextui
+    linden_outlawalerts
 
 Description:
 Simple house robbery script. Its my first resource so feedback and feature ideas are very much appreciated.
