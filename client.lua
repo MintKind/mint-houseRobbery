@@ -1,17 +1,20 @@
 canStart = true
 ongoing = false
 robberyStarted = false
+NeededAttempts = 0
+SucceededAttempts = 0
+FailedAttemps = 0
 
 Citizen.CreateThread(function()
     hashKey = RequestModel(GetHashKey("a_m_y_business_03"))
-    
-	
+
+
     while not HasModelLoaded(GetHashKey("a_m_y_business_03")) do
         Wait(1)
     end
-	
+
     local npc = CreatePed(4, 0xA1435105, 446.77, -1551.83, 28.28, 177.75, false, true)
-    
+
     SetEntityHeading(npc, 177.75)
     FreezeEntityPosition(npc, true)
     SetEntityInvincible(npc, true)
@@ -91,15 +94,15 @@ AddEventHandler("createEntry", function(missionTarget)
 	        if dist <= 5.0 then
 	            wait = 5
 	            inZone  = true
-	            text = '<b>Entry</b></p>Press [E] to start the robbery'
+	            text = '<b>Entry</b></p>Press [F] to start the robbery'
 
-	            if IsControlJustReleased(0, 38) then
-	                TriggerEvent('goInside', missionTarget)
+	            if IsControlJustReleased(0, 23) then
+	                EntryMinigame(missionTarget)
 	            end
 	        else
 	            wait = 2000
 	        end
-	        
+
 	        if inZone and not alreadyEnteredZone then
 	            alreadyEnteredZone = true
 	            TriggerEvent('cd_drawtextui:ShowUI', 'show', text)
@@ -135,9 +138,10 @@ AddEventHandler("createExit", function(missionTarget)
 	        if dist <= 5.0 then
 	            wait = 5
 	            inZone  = true
-	            text = '<b>Exit</b></p>Press [E] to end the robbery and leave the house.'
+	            text = '<b>Exit</b></p>Press [F] to end the robbery and leave the house.'
 
-	            if IsControlJustReleased(0, 38) then
+	            if IsControlJustReleased(0, 23) then
+                    Citizen.Wait(1000)
 	                robberyStarted = false
                     ongoing = false
                     SetEntityCoords(PlayerPedId(), missionTarget.location.x, missionTarget.location.y, missionTarget.location.z)
@@ -148,7 +152,7 @@ AddEventHandler("createExit", function(missionTarget)
 	        else
 	            wait = 2000
 	        end
-	        
+
 	        if inZone and not alreadyEnteredZone then
 	            alreadyEnteredZone = true
 	            TriggerEvent('cd_drawtextui:ShowUI', 'show', text)
@@ -246,4 +250,79 @@ function cooldownNextRobbery()
     canStart = true
     robberyCreated = false
     ongoing = false
+end
+
+function cooldownNextRobberyFail()
+    RemoveBlip(targetBlip)
+    TriggerEvent('cd_drawtextui:HideUI')
+    Citizen.Wait(3000)
+    TriggerServerEvent('qb-phone:server:sendNewMail', {
+        sender =  "Mr. Mint",
+        subject = "Bad.",
+        message = "That was not good my friend. How about you take some extra time off.",
+        button = {
+            enabled = false
+        }
+    })
+    Citizen.Wait(700000) -- Needs a better option. So that client cant just reconnect and reset timer that way.
+    canStart = true
+    robberyCreated = false
+    ongoing = false
+end
+
+
+function EntryMinigame(missionTarget)
+    local Skillbar = exports['qb-skillbar']:GetSkillbarObject()
+    if NeededAttempts == 0 then
+        NeededAttempts = math.random(3, 5)
+        -- NeededAttempts = 1
+    end
+
+    local maxwidth = 30
+    local maxduration = 3500
+
+    Skillbar.Start({
+        duration = math.random(2000, 3000),
+        pos = math.random(10, 30),
+        width = math.random(20, 30),
+    }, function()
+
+        if SucceededAttempts + 1 >= NeededAttempts then
+            TriggerEvent("goInside", missionTarget)
+            ongoing = true
+            QBCore.Functions.Notify("You got the door open!", "success")
+            FailedAttemps = 0
+            SucceededAttempts = 0
+            NeededAttempts = 0
+        else
+            SucceededAttempts = SucceededAttempts + 1
+            Skillbar.Repeat({
+                duration = math.random(2000, 3000),
+                pos = math.random(10, 30),
+                width = math.random(20, 30),
+            })
+        end
+
+
+	end, function()
+
+            QBCore.Functions.Notify("You messed up the lock! Get outa there!", "error")
+            callPolice(missionTarget)
+            FailedAttemps = 0
+            SucceededAttempts = 0
+            NeededAttempts = 0
+            robberyStarted = false
+            ongoing = false
+            cooldownNextRobberyFail()
+            Citizen.Wait(500)
+            TriggerEvent('cd_drawtextui:HideUI')
+
+    end)
+end
+
+function callPolice(missionTarget)
+    local data = {displayCode = '459', description = 'House alarm', isImportant = 0, recipientList = {'police'}, length = '10000', infoM = 'fa-info-circle', info = 'House alarm activated'}
+	local dispatchData = {dispatchData = data, caller = 'Alarm', coords = vector3(missionTarget.location.x, missionTarget.location.y, missionTarget.location.z)}
+	TriggerServerEvent('wf-alerts:svNotify', dispatchData)
+    PlaySound(-1, "Lose_1st", "GTAO_FM_Events_Soundset", 0, 0, 1)
 end
